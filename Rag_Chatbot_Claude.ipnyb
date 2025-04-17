@@ -1,0 +1,400 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "UPwj2QUXqFXT"
+      },
+      "source": [
+        "## This is a basic notebook has a ChatBot code, a simple UI and a logging file for each dialogue session. It also includes a basic Retrieval Augmented Generation part that uses a file you will upload. \n"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 1,
+      "metadata": {
+        "id": "NgdtkqqMXnbV"
+      },
+      "outputs": [],
+      "source": [
+        "# adding the required libraries, including tokenisation, faiss, pdf analysis\n",
+        "%%capture\n",
+        "!pip install langchain-anthropic anthropic langchain-community faiss-cpu langchain pdfplumber"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 2,
+      "metadata": {
+        "id": "Gxt2lYqC0StB"
+      },
+      "outputs": [],
+      "source": [
+        "# Import necessary libraries\n",
+        "import os\n",
+        "import pdfplumber #for data extraction from the PDF\n",
+        "import time\n",
+        "import textwrap #for interface\n",
+        "import ipywidgets as widgets #for interface\n",
+        "import IPython #Interactive Python Shell\n",
+        "from IPython.display import display, Markdown"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 3,
+      "metadata": {
+        "id": "xED8e6XA0uHt"
+      },
+      "outputs": [],
+      "source": [
+        "# LangChain imports\n",
+        "from langchain_anthropic import ChatAnthropic #imports Claude chat models\n",
+        "from langchain.embeddings import HuggingFaceEmbeddings #text to numerical vectors - embeddings\n",
+        "from langchain.vectorstores import FAISS #similarity search for vectors\n",
+        "from langchain.text_splitter import RecursiveCharacterTextSplitter #splits large text chunks into smaller\n",
+        "from langchain.chains import RetrievalQA #pre-built chain for document retrieval and question answering\n",
+        "from langchain.prompts import PromptTemplate #PromptTemplates for LangChain - Persona, Task, Communication\n",
+        "from langchain.memory import ConversationBufferMemory #Memory Handling for LangChain\n",
+        "from langchain.schema.runnable import RunnableMap, RunnableSequence #Schema mapping and sequence for LangChain"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 4,
+      "metadata": {
+        "id": "9OmZyGt0JaE6"
+      },
+      "outputs": [],
+      "source": [
+        "# Import from Anthropic\n",
+        "from anthropic import Anthropic, HUMAN_PROMPT, AI_PROMPT"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 5,
+      "metadata": {
+        "id": "9AuWTy9x1SIX"
+      },
+      "outputs": [],
+      "source": [
+        "# Set up Anthropic API key\n",
+        "import os\n",
+        "os.environ[\"ANTHROPIC_API_KEY\"] = ***insert your API KEY here***"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "qzqUMiuF1ReK"
+      },
+      "outputs": [],
+      "source": []
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Qg842EptwqnM"
+      },
+      "source": []
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 6,
+      "metadata": {
+        "id": "y2f6paXo-w_z"
+      },
+      "outputs": [],
+      "source": [
+        "import warnings\n",
+        "warnings.filterwarnings('ignore')"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 7,
+      "metadata": {
+        "id": "1C8tI7481_tY"
+      },
+      "outputs": [],
+      "source": [
+        "# Function to extract text from PDF\n",
+        "def extract_text_from_pdf(pdf_path):\n",
+        "    \"\"\"Extract text content from a PDF file.\"\"\"\n",
+        "    text = \"\"\n",
+        "    with pdfplumber.open(pdf_path) as pdf:\n",
+        "        for page in pdf.pages:\n",
+        "            extracted = page.extract_text()\n",
+        "            if extracted:  # Avoid NoneType errors\n",
+        "                text += extracted + \"\\n\"\n",
+        "    return text"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "zjUfHdi6w78E"
+      },
+      "outputs": [],
+      "source": [
+        "# Upload PDF file\n",
+        "from google.colab import files\n",
+        "print(\"Please upload your PDF document:\")\n",
+        "uploaded = files.upload()"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "wVp4tX642W0P"
+      },
+      "outputs": [],
+      "source": [
+        "# Extract text from the first uploaded PDF\n",
+        "pdf_filename = list(uploaded.keys())[0]\n",
+        "pdf_path = f\"/content/{pdf_filename}\"\n",
+        "pdf_text = extract_text_from_pdf(pdf_path)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 10,
+      "metadata": {
+        "id": "8Vk4-ewt2bZY"
+      },
+      "outputs": [],
+      "source": [
+        "# Split the document into chunks for embedding\n",
+        "text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)\n",
+        "documents = text_splitter.create_documents([pdf_text])\n",
+        "\n",
+        "# Create vector embeddings and store in FAISS\n",
+        "# Using HuggingFace embeddings instead of OpenAI embeddings\n",
+        "embeddings = HuggingFaceEmbeddings()\n",
+        "vectorstore = FAISS.from_documents(documents, embeddings)\n",
+        "retriever = vectorstore.as_retriever()\n",
+        "\n",
+        "# Initialize the chat model with Claude\n",
+        "llm = ChatAnthropic(model=\"claude-3-opus-20240229\", temperature=0.7)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 11,
+      "metadata": {
+        "id": "4O9U2V4V2eiY"
+      },
+      "outputs": [],
+      "source": [
+        "# Create the RAG (Retrieval Augmented Generation) chain\n",
+        "rag_chain = RetrievalQA.from_chain_type(\n",
+        "    llm=llm,\n",
+        "    retriever=retriever,\n",
+        "    return_source_documents=True\n",
+        ")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 12,
+      "metadata": {
+        "id": "H78KcZyw2fFp"
+      },
+      "outputs": [],
+      "source": [
+        "# Define the prompt template for our technical Python coder\n",
+        "prompt_template = PromptTemplate.from_template(\"\"\"\n",
+        "<Persona>\n",
+        "You are a very technical python coder with expertise in geometry and topology, and in particular topologicPy and Industrial Foundation Classes strategies.\n",
+        "</Persona>\n",
+        "\n",
+        "<Task>\n",
+        "The conversation is about helping junior python coders to develop code using Topologicpy API\n",
+        "Please use few-shot strategy to benchmark your responses when the questions are difficult.\n",
+        "Use the retrieved context when it's relevant to answer the user's question.\n",
+        "Communicate sources for your answers when needed.\n",
+        "</Task>\n",
+        "\n",
+        "<Communication>\n",
+        "Respond in detailed python codes and explanations.\n",
+        "Keep the dialogue on track.\n",
+        "Never reveal you are an AI or LLM.\n",
+        "If questioned further provide an explanation of at least one paragraph with ten sentences as an explanation of your thinking.\n",
+        "Ensure your answers are data-driven when possible, drawing from the context provided.\n",
+        "</Communication>\n",
+        "\n",
+        "<Context>\n",
+        "{context}\n",
+        "</Context>\n",
+        "\n",
+        "Conversation history:\n",
+        "{history}\n",
+        "\n",
+        "User: {user_input}\n",
+        "ChatBot:\n",
+        "\"\"\")"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "Oxe3bzqM2iY0"
+      },
+      "outputs": [],
+      "source": [
+        "# Initialize memory for conversation history\n",
+        "memory = ConversationBufferMemory(return_messages=True, max_token_limit=500)\n",
+        "\n",
+        "# Create a function to process user input using both RAG and the conversational prompt\n",
+        "def process_user_input(user_input, history):\n",
+        "    # First, use RAG to retrieve relevant context\n",
+        "    rag_response = rag_chain({\"query\": user_input})\n",
+        "    relevant_context = rag_response.get(\"result\", \"\")\n",
+        "\n",
+        "    # Format the conversation history\n",
+        "    formatted_history = \"\\n\".join([f\"User: {h['user_input']}\\nChatBot: {h['assistant']}\" for h in history])\n",
+        "\n",
+        "    # Use the prompt template with the retrieved context\n",
+        "    response = llm.invoke(prompt_template.format(\n",
+        "        context=relevant_context,\n",
+        "        history=formatted_history,\n",
+        "        user_input=user_input\n",
+        "    ))\n",
+        "\n",
+        "    return response.content\n",
+        "\n",
+        "# UI Elements\n",
+        "chat_output = widgets.Output()\n",
+        "user_input_box = widgets.Textarea(\n",
+        "    placeholder=\"Enter your message here...\",\n",
+        "    description=\"User:\",\n",
+        "    style={'description_width': 'initial'},\n",
+        "    layout=widgets.Layout(width=\"80%\", height=\"50px\")\n",
+        ")\n",
+        "end_chat_button = widgets.Button(description=\"End Chat Session\", button_style=\"danger\")\n",
+        "\n",
+        "# Display UI Elements\n",
+        "display(chat_output, user_input_box, end_chat_button)\n",
+        "\n",
+        "# Initialize conversation history\n",
+        "history = []\n",
+        "\n",
+        "# Open log file in append mode\n",
+        "log_filename = \"rag_chat_history.txt\"\n",
+        "log_file = open(log_filename, \"a\", encoding=\"utf-8\")\n",
+        "\n",
+        "# Show initial message\n",
+        "with chat_output:\n",
+        "    print(\"Welcome! I'm your Python coding assistant. How can I help you today?\")\n",
+        "\n",
+        "def handle_input():\n",
+        "    \"\"\"Handles user input when Enter is pressed.\"\"\"\n",
+        "    user_input = user_input_box.value.strip()\n",
+        "\n",
+        "    if not user_input:\n",
+        "        return  # Ignore empty input\n",
+        "\n",
+        "    if user_input.lower() in [\"exit\", \"quit\"]:\n",
+        "        stop_chat()\n",
+        "        return\n",
+        "\n",
+        "    # Display user input\n",
+        "    with chat_output:\n",
+        "        print(f\"User: {user_input}\")\n",
+        "\n",
+        "    # Process response using combined approach\n",
+        "    try:\n",
+        "        response_text = process_user_input(user_input, history)\n",
+        "        wrapped_response = textwrap.fill(response_text, width=120)\n",
+        "\n",
+        "        with chat_output:\n",
+        "            print(f\"ChatBot: {wrapped_response}\")\n",
+        "\n",
+        "        # Update conversation history\n",
+        "        history.append({\"user_input\": user_input, \"assistant\": response_text})\n",
+        "\n",
+        "        # Log conversation to file\n",
+        "        log_file.write(f\"User: {user_input}\\n\")\n",
+        "        log_file.write(f\"ChatBot: {response_text}\\n\\n\")\n",
+        "        log_file.flush()  # Ensure data is written immediately\n",
+        "\n",
+        "    except Exception as e:\n",
+        "        with chat_output:\n",
+        "            print(f\"Error: {e}\")\n",
+        "\n",
+        "    # Clear input box for next message\n",
+        "    user_input_box.value = \"\"\n",
+        "\n",
+        "def handle_keypress(change):\n",
+        "    \"\"\"Detect Enter and submit input.\"\"\"\n",
+        "    if change[\"name\"] == \"value\" and change[\"new\"].endswith(\"\\n\"):  # Detect newlines\n",
+        "        handle_input()\n",
+        "\n",
+        "def stop_chat(_=None):\n",
+        "    \"\"\"Ends the chat, saves dialogue history and closes the log file\"\"\"\n",
+        "    global log_file\n",
+        "    log_file.close()  # Close file properly\n",
+        "\n",
+        "    with chat_output:\n",
+        "        print(\"\\nGoodbye! Chat history saved to 'rag_chat_history.txt'.\")\n",
+        "\n",
+        "    disable_input()\n",
+        "\n",
+        "def disable_input():\n",
+        "    \"\"\"Disables input box and chat button after chat ends.\"\"\"\n",
+        "    user_input_box.close()\n",
+        "    end_chat_button.disabled = True\n",
+        "\n",
+        "# Bind buttons and input events\n",
+        "end_chat_button.on_click(stop_chat)\n",
+        "\n",
+        "# Attach event listener for Enter\n",
+        "user_input_box.observe(handle_keypress, names=\"value\")\n",
+        "\n",
+        "# Function to count tokens - note: Claude doesn't use tiktoken\n",
+        "def estimate_tokens(text):\n",
+        "    \"\"\"Rough estimation of token count for Claude models\"\"\"\n",
+        "    # A rough approximation - Claude models use different tokenization\n",
+        "    return len(text.split()) * 1.3  # Rough estimate"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "pQCNuaeHgrMy"
+      },
+      "source": [
+        "more documentation here:\n",
+        "https://python.langchain.com/docs/integrations/chat/anthropic/"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "yWTQ17QN5l2b"
+      },
+      "source": [
+        "### Hint: in LangChain you can have RAG via RetrievalQA and use FAISS"
+      ]
+    }
+  ],
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "display_name": "Python 3",
+      "name": "python3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 0
+}
