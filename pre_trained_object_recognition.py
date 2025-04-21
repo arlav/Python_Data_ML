@@ -96,8 +96,13 @@ def main():
     # Example images to test (you can replace these with your own)
     test_images = [
         'https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/Cat_August_2010-4.jpg/1920px-Cat_August_2010-4.jpg',  # Cat
-        'https://upload.wikimedia.org/wikipedia/commons/6/6a/Eagle_in_flight.jpg',  # Eagle
-        'https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/2010_Volkswagen_Golf_VI_–_5-door_hatchback_%282015-07-24%29_01.jpg/1920px-2010_Volkswagen_Golf_VI_–_5-door_hatchback_%282015-07-24%29_01.jpg',  # Car
+        'https://images.pistonheads.com/nimg/46505/blobid0.jpg',  # Car
+        'https://upload.wikimedia.org/wikipedia/commons/3/36/United_Airlines_Boeing_777-200_Meulemans.jpg', #Airplane
+        'https://www.gp-award.com/assets/media/award22/1-nordic-space-desk_productLarge.jpg', #Desk
+        'https://www.ikea.com/gb/en/images/products/pinntorp-chair-light-brown-stained__1296225_pe935730_s5.jpg?f=xl', #Chair
+        'https://modelaviation.s3.us-east-2.amazonaws.com/2025-02/TheYearOTBiplanes-094.jpg', #Biplane
+        'https://s.hdnux.com/photos/01/41/41/45/25565560/3/ratio3x2_960.webp', #Fireman
+        
     ]
     
     # Process each image
